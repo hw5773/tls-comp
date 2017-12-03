@@ -2,6 +2,8 @@ import sys
 import os
 import smtplib
 import brotli
+import bz2
+import lzma
 import zlib
 import OpenSSL.crypto
 import binascii
@@ -35,18 +37,24 @@ def make_output(result):
 
     ret = "# of domains: %d\n" % result[0]
     ret = ret + "===== PEM Results =====\n"
-    ret = ret + "  Average size : %f\n" % (result[1] / result[0])
-    ret = ret + "  ZLib Size: %f\n" % (result[2] / result[0])
-    ret = ret + "  ZLib Ratio: %f\n" % (result[3] / result[0])
-    ret = ret + "  Brotli Size: %f\n" % (result[4] / result[0])
-    ret = ret + "  Brotli Ratio: %f\n\n" % (result[5] / result[0])
+    ret = ret + "  Average size: %f\n" % (result[1] / result[0])
+    ret = ret + "  Max size: %d\n" % result[2]
+    ret = ret + "  Min size: %d\n" % result[3]
+    ret = ret + "  zLib size: %f\n" % (result[4] / result[0])
+    ret = ret + "  brotli size: %f\n" % (result[5] / result[0])
+    ret = ret + "  bz2 size: %f\n" % (result[6] / result[0])
+    ret = ret + "  lzma size: %f\n" % (result[7] / result[0])
+    ret = ret + "  lzw size: %f\n" % (result[8] / result[0])
 
     ret = ret + "===== DER Results =====\n"
-    ret = ret + "  Average size : %f\n" % (result[6] / result[0])
-    ret = ret + "  ZLib Size: %f\n" % (result[7] / result[0])
-    ret = ret + "  ZLib Ratio: %f\n" % (result[8] / result[0])
-    ret = ret + "  Brotli Size: %f\n" % (result[9] / result[0])
-    ret = ret + "  Brotli Ratio: %f\n\n" % (result[10] / result[0])
+    ret = ret + "  Average size : %f\n" % (result[9] / result[0])
+    ret = ret + "  Max size: %d\n" % result[10]
+    ret = ret + "  Min size: %d\n" % result[11]
+    ret = ret + "  zLib size: %f\n" % (result[12] / result[0])
+    ret = ret + "  brotli size: %f\n" % (result[13] / result[0])
+    ret = ret + "  bz2 size: %f\n" % (result[14] / result[0])
+    ret = ret + "  lzma size: %f\n" % (result[15] / result[0])
+    ret = ret + "  lzw size: %f\n" % (result[16] / result[0])
 
     return ret
 
@@ -72,6 +80,8 @@ def main():
 
     rfn = prefix + ".out"
     rf = open(rfn, "w")
+    s = "File name, # of certs, Avg. PEM size, Max PEM size, Min PEM size, zlib (PEM), brotli (PEM), bz2 (PEM), lzma (PEM), lzw (PEM), Avg. DER size, Max DER size, Min DER size, zlib (DER), brotli (DER), bz2 (DER), lzma (DER), lzw (DER)\n"
+    rf.write(s)
 
     c = OpenSSL.crypto
     head = "-----BEGIN CERTIFICATE-----\n"
@@ -82,13 +92,16 @@ def main():
         f = open(fn, "r")
         ofn = prefix + "_" + fn + ".out"
         of = open(ofn, "w")
-        of.write("domain, issuer, size (PEM), zlib (PEM), zlib ratio (PEM), brotli (PEM), brotli ratio (PEM), size (DER), zlib (DER), zlib ratio (DER), brotli (DER), brotli ratio (DER)\n")
-        max_size = -1
-        min_size = 1000000
+        of.write("num, domain, issuer, size (PEM), zlib (PEM), brotli (PEM), bz2 (PEM), lzma (PEM), size (DER), zlib (DER), brotli (DER), bz2 (DER), lzma (DER)\n")
         num = 0
         result = {}
-        for i in range(11):
+
+        for i in range(17):
             result[i] = 0
+        result[2] = -sys.maxsize + 1
+        result[3] = sys.maxsize
+        result[10] = -sys.maxsize + 1
+        result[11] = sys.maxsize
 
         for line in f:
             result[0] = result[0] + 1
@@ -122,29 +135,51 @@ def main():
 
             pem_size = len(pem)
             pem_zlib = len(zlib.compress(pem))
-            pem_zlib_ratio = round(pem_zlib / pem_size)
             pem_brotli = len(brotli.compress(pem))
-            pem_brotli_ratio = round((pem_brotli / pem_size), 2)
+            pem_bz2 = len(bz2.compress(pem))
+            pem_lzma = len(lzma.compress(pem))
 
             der_size = len(der)
             der_zlib = len(zlib.compress(der))
-            der_zlib_ratio = round((der_zlib / der_size), 2)
             der_brotli = len(brotli.compress(der))
-            der_brotli_ratio = round((der_brotli / der_size), 2)
+            der_bz2 = len(bz2.compress(der))
+            der_lzma = len(lzma.compress(der))
+
+            pfw = open("pem.tmp", "wb")
+            pfw.write(pem)
+            pfw.close()
+            dfw = open("der.tmp", "wb")
+            dfw.write(der)
+            dfw.close()
+
+            os.system("python2 certs_lzw.py")
+
+            pem_lzw = os.stat("pem_out.tmp").st_size
+            der_lzw = os.stat("der_out.tmp").st_size
 
             result[1] = result[1] + pem_size
-            result[2] = result[2] + pem_zlib
-            result[3] = result[3] + pem_zlib_ratio
-            result[4] = result[4] + pem_brotli
-            result[5] = result[5] + pem_brotli_ratio
+            if pem_size > result[2]:
+                result[2] = pem_size
+            if pem_size < result[3]:
+                result[3] = pem_size
+            result[4] = result[4] + pem_zlib
+            result[5] = result[5] + pem_brotli
+            result[6] = result[6] + pem_bz2
+            result[7] = result[7] + pem_lzma
+            result[8] = result[8] + pem_lzw
 
-            result[6] = result[6] + der_size
-            result[7] = result[7] + der_zlib
-            result[8] = result[8] + der_zlib_ratio
-            result[9] = result[9] + der_brotli
-            result[10] = result[10] + der_brotli_ratio
+            result[9] = result[9] + der_size
+            if der_size > result[10]:
+                result[10] = der_size
+            if der_size < result[11]:
+                result[11] = der_size
+            result[12] = result[12] + der_zlib
+            result[13] = result[13] + der_brotli
+            result[14] = result[14] + der_bz2
+            result[15] = result[15] + der_lzma
+            result[16] = result[16] + der_lzw
 
-            s = "%s, %s, %d, %d, %f, %d, %f, %d, %d, %f, %d, %f\n" % (dom, issuer, pem_size, pem_zlib, pem_zlib_ratio, pem_brotli, pem_brotli_ratio, der_size, der_zlib, der_zlib_ratio, der_brotli, der_brotli_ratio)
+            s = "%d, %s, %s, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d\n" % (num, dom, issuer, pem_size, pem_zlib, pem_brotli, pem_bz2, pem_lzma, pem_lzw, der_size, der_zlib, der_brotli, der_bz2, der_lzma, der_lzw)
 
             try:
                 print (num, ") ", s)
@@ -157,7 +192,7 @@ def main():
 
         de = result[0]
 
-        s = "%d, %f, %f, %f, %f, %f, %f, %f, %f, %f, %f\n" % (de, make_val(result[1], de), make_val(result[2], de), make_val(result[3], de), make_val(result[4], de), make_val(result[5], de), make_val(result[6], de), make_val(result[7], de), make_val(result[8], de), make_val(result[9], de), make_val(result[10], de))
+        s = "%s, %d, %f, %f, %f, %f, %f, %f, %f, %f, %f, %f, %f, %f, %f, %f, %f\n" % (fn, de, make_val(result[1], de), result[2], result[3], make_val(result[4], de), make_val(result[5], de), make_val(result[6], de), make_val(result[7], de), make_val(result[8], de), make_val(result[9], de), result[10], result[11], make_val(result[12], de), make_val(result[13], de), make_val(result[14], de), make_val(result[15], de))
         rf.write(s)
 
         title = "%s succeed" % fn
@@ -165,8 +200,12 @@ def main():
 
         send_email(title, msg)
 
-        for i in range(11):
+        for i in range(17):
             result[i] = 0
+        result[2] = -sys.maxsize + 1
+        result[3] = sys.maxsize
+        result[10] = -sys.maxsize + 1
+        result[11] = sys.maxsize
 
     rf.close()
 
