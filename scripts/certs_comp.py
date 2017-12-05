@@ -114,7 +114,7 @@ def main():
             try:
                 cert = c.load_certificate(c.FILETYPE_PEM, pem)
             except:
-                s = "error"
+                s = "error\n"
                 of.write(s)
                 continue
 
@@ -124,7 +124,7 @@ def main():
                 dom = cert.get_subject().CN
                 issuer = cert.get_issuer().CN
             except:
-                s = "error"
+                s = "error\n"
                 of.write(s)
                 continue
 
@@ -186,7 +186,7 @@ def main():
                 of.write(s)
             except:
                 print (num, ") error encoding")
-                of.write("error encoding")
+                of.write("error encoding\n")
 
         of.close()
 
