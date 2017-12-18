@@ -92,7 +92,7 @@ def main():
         f = open(fn, "r")
         ofn = prefix + "_" + fn + ".out"
         of = open(ofn, "w")
-        of.write("num, domain, issuer, size (PEM), zlib (PEM), brotli (PEM), bz2 (PEM), lzma (PEM), size (DER), zlib (DER), brotli (DER), bz2 (DER), lzma (DER)\n")
+        of.write("num, domain, issuer, size (PEM), zlib (PEM), brotli (PEM), bz2 (PEM), lzma (PEM), lzw (PEM), size (DER), zlib (DER), brotli (DER), bz2 (DER), lzma (DER), lzw (DER)\n")
         num = 0
         result = {}
 
